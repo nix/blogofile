@@ -61,7 +61,7 @@ def __load_config(path=None):
     # config is missing something.
     exec(default_config)
     filter.preload_filters()
-    controller.load_controllers()
+    controller.load_controllers(namespace=bf.config.controllers)
     if path:
         execfile(path)
     #config is now in locals() but needs to be in globals()

@@ -130,11 +130,11 @@ class Writer(object):
     def __init_filters_controllers(self):
         #Run filter/controller defined init methods
         filter.init_filters()
-        controller.init_controllers()
+        controller.init_controllers(namespace=self.bf.config.controllers)
         
     def __run_controllers(self):
         """Run all the controllers in the _controllers directory"""
-        controller.run_all()
+        controller.run_all(namespace=self.bf.config.controllers)
         
     def template_render(self, template, attrs={}):
         """Render a template"""
