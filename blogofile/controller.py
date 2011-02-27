@@ -59,13 +59,7 @@ bf.controller = sys.modules['blogofile.controller']
 
 logger = logging.getLogger("blogofile.controller")
 
-__loaded_controllers = {} #name -> module
-
-default_controller_config = {"name"        : None,
-                             "description" : None,
-                             "author"      : None,
-                             "url"         : None,
-                             "priority"    : 50.0,
+default_controller_config = {"priority"    : 50.0,
                              "enabled"     : False}
 
 def __find_controller_names(directory="_controllers"):
@@ -98,25 +92,21 @@ def init_controllers(namespace):
             else:
                 init_method()
 
-def load_controller(name, namespace, directory="_controllers"):
+def load_controller(name, namespace, directory="_controllers", defaults={}, is_plugin=False):
     """Load a single controller by name"""
     #Don't generate pyc files in the _controllers directory
     #Reset the original sys.dont_write_bytecode setting where we're done
-    try:
-        return __loaded_controllers[name]
-    except KeyError:
-        pass
     try:
         initial_dont_write_bytecode = sys.dont_write_bytecode
     except KeyError:
         initial_dont_write_bytecode = False
     try:
         sys.path.insert(0, directory)
-        logger.debug("loading controller: {0}".format(name))
         try:
             sys.dont_write_bytecode = True
             controller = __import__(name)
             controller.__initialized = False
+            logger.debug("found controller: {0} - {1}".format(name,controller))
         except (ImportError,),e:
             logger.error(
                 "Cannot import controller : {0} ({1})".format(name, e))
@@ -126,11 +116,14 @@ def load_controller(name, namespace, directory="_controllers"):
         # Load the blogofile defaults for controllers:
         for k, v in default_controller_config.items():
             namespace[name][k] = v
-        # Load any of the controller defined defaults:
-        try:
-            controller_config = getattr(controller, "config")
-            for k, v in controller_config.items():
-                if k != "enabled":
+        # Load provided defaults:
+        for k, v in defaults.items():
+            namespace[name][k] = v
+        if not is_plugin:
+            # Load any of the controller defined defaults:
+            try:
+                controller_config = getattr(controller, "config")
+                for k, v in controller_config.items():
                     if "." in k:
                         #This is a hierarchical setting
                         tail = namespace[name]
@@ -138,27 +131,34 @@ def load_controller(name, namespace, directory="_controllers"):
                         for part in parts[:-1]:
                             tail = tail[part]
                         tail[parts[-1]] = v
+                    if k == "enabled" and v == True:
+                        #Controller default value can't turn itself on,
+                        #but it can turn itself off.
+                        pass
+                    if k == "mod":
+                        #Don't ever redefine the module reference
+                        pass
                     else:
                         namespace[name][k] = v
-        except AttributeError:
-            pass
+            except AttributeError:
+                pass
         #Provide every controller with a logger:
         c_logger = logging.getLogger("blogofile.controllers." + name)
         namespace[name]["logger"] = c_logger
         return namespace[name].mod
     finally:
-        sys.path.remove("_controllers")
+        sys.path.remove(directory)
         sys.dont_write_bytecode = initial_dont_write_bytecode
     
         
-def load_controllers(namespace, directory="_controllers"):
+def load_controllers(namespace, directory="_controllers", defaults={}):
     """Find all the controllers in the _controllers directory
     and import them into the bf context"""
-    for name in __find_controller_names():
-        load_controller(name, namespace, directory)
+    for name in __find_controller_names(directory):
+        load_controller(name, namespace, directory, defaults)
 
 
-def defined_controllers(namespace, only_enabled=True):
+def defined_controllers(namespaces, only_enabled=True):
     """Find all the enabled controllers in order of priority
 
     if only_enabled == False, find all controllers, regardless of
@@ -170,40 +170,37 @@ def defined_controllers(namespace, only_enabled=True):
     >>> bf_test.two.enabled = False
     >>> bf_test.two.priority = 90
     >>> bf_test.three.enabled = True #default priority 50
-    >>> defined_controllers(bf_test)
-    ['three', 'one']
+    >>> bf_test2 = bf.cache.HierarchicalCache()
+    >>> bf_test2.one.enabled = True
+    >>> bf_test2.one.priority = 100
+    >>> defined_controllers((bf_test,bf_test2))
+    [bf_test2.one, bf_test.two, bf_test.three, bf_test.one]
     >>> defined_controllers(bf_test, only_enabled=False)
-    ['two', 'three', 'one']
+    [bf_test2.one, bf_test.three, bf_test.one]
     """
-    controller_priorities = [] # [(controller_name, priority),...]
-    for name, settings in namespace.items():
-        #Get only the ones that are enabled:
-        c = namespace[name]
-        if "enabled" not in c or c['enabled'] == False:
-            #The controller is disabled
-            if only_enabled:
-                continue
-        #Get the priority:
-        if "priority" in c:
-            priority = c['priority']
-        else:
-            priority = c['priority'] = 50
-        controller_priorities.append((name, priority))
+    controllers = []
+    for namespace in namespaces:
+        for c in namespace.controllers.values():
+            #Get only the ones that are enabled:
+            if "enabled" not in c or c['enabled'] == False:
+                #The controller is disabled
+                if only_enabled:
+                    continue
+            controllers.append(c)
     #Sort the controllers by priority
-    return [x[0] for x in sorted(controller_priorities,
-                                 key=operator.itemgetter(1),
-                                 reverse=True)]
+    return [x for x in sorted(controllers,
+                              key=operator.attrgetter("priority"),
+                              reverse=True)]
 
-def run_all(namespace):
+def run_all(namespaces):
     """Run each controller in priority order"""
     #Get the controllers in priority order:
-    controller_names = defined_controllers(namespace)
+    controllers = defined_controllers(namespaces)
     #Temporarily add _controllers directory onto sys.path
-    for name in controller_names:
-        controller = namespace[name].mod
-        if "run" in dir(controller):
-            logger.info("running controller: {0}".format(name))
-            controller.run()
+    for c in controllers:
+        if "run" in dir(c.mod):
+            logger.info("running controller: {0}".format(c.mod.__file__))
+            c.mod.run()
         else:
             logger.debug(
-                "controller {0} has no run() method, skipping it.".format(name))
+                "controller {0} has no run() method, skipping it.".format(c))
