@@ -15,6 +15,7 @@ import writer
 import blogofile_bf as bf
 import cache
 import controller
+import plugin
 import site_init
 import filter
 
@@ -33,6 +34,7 @@ override_options = {} #override config options (mostly from unit tests)
 site = cache.HierarchicalCache()
 controllers = cache.HierarchicalCache()
 filters = cache.HierarchicalCache()
+plugins = cache.HierarchicalCache()
 
 def default_config_path():
     return os.path.join(os.path.split(site_init.__file__)[0], "_config.py")
@@ -55,11 +57,13 @@ def recompile():
 def __load_config(path=None):
     #Strategy:
     # 1) Load the default config
-    # 2) Load the filters and controllers
-    # 3) Finally load the user's config.
+    # 2) Load the plugins
+    # 3) Load the site filters and controllers
+    # 4) Load the user's config.
     # This will ensure that we have good default values if the user's
     # config is missing something.
     exec(default_config)
+    plugin.load_plugins()
     filter.preload_filters()
     controller.load_controllers(namespace=bf.config.controllers)
     if path:

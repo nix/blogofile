@@ -22,6 +22,7 @@ import config
 import cache
 import filter
 import controller
+import plugin
 
 logger = logging.getLogger("blogofile.writer")
 
@@ -47,6 +48,7 @@ class Writer(object):
     def write_site(self):
         self.__setup_output_dir()
         self.__load_bf_cache()
+        self.__init_plugins()
         self.__init_filters_controllers()
         self.__run_controllers()
         self.__write_files()
@@ -127,6 +129,10 @@ class Writer(object):
                     else:
                         shutil.copyfile(f_path, out_path)
 
+    def __init_plugins(self):
+        #Run plugin defined init methods
+        plugin.init_plugins()
+        
     def __init_filters_controllers(self):
         #Run filter/controller defined init methods
         filter.init_filters()
@@ -134,7 +140,10 @@ class Writer(object):
         
     def __run_controllers(self):
         """Run all the controllers in the _controllers directory"""
-        controller.run_all(namespace=self.bf.config.controllers)
+        namespaces = [self.bf.config]
+        for plugin in self.bf.config.plugins.values():
+            namespaces.append(plugin)
+        controller.run_all(namespaces)
         
     def template_render(self, template, attrs={}):
         """Render a template"""
