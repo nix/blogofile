@@ -142,7 +142,8 @@ class Writer(object):
         """Run all the controllers in the _controllers directory"""
         namespaces = [self.bf.config]
         for plugin in self.bf.config.plugins.values():
-            namespaces.append(plugin)
+            if plugin.enabled:
+                namespaces.append(plugin)
         controller.run_all(namespaces)
         
     def template_render(self, template, attrs={}):
