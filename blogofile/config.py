@@ -8,6 +8,7 @@ __author__ = "Ryan McGuire (ryan@enigmacurry.com)"
 __date__   = "Tue Jul 28 20:40:29 2009"
 
 import os
+import logging
 import sys
 
 import util
@@ -20,6 +21,8 @@ import site_init
 import filter
 
 bf.config = sys.modules['blogofile.config']
+
+logger = logging.getLogger("blogofile.writer")
 
 __loaded = False
 
@@ -87,6 +90,7 @@ def __load_config(path=None):
 def init(config_file_path=None):
     #Initialize the config, if config_file_path is None,
     #just load the default config
+    logger.info("Loading config file : {0}".format(config_file_path))
     if config_file_path:
         if not os.path.isfile(config_file_path):
             raise ConfigNotFoundException
