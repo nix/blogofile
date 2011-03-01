@@ -101,6 +101,13 @@ def get_args(cmd=None):
                                    parents=[parser_template])
     p_info.set_defaults(func=do_info)
 
+    p_plugin = subparsers.add_parser("plugin", help="Plugin tools",
+                                   parents=[parser_template])
+    p_plugin_subparsers = p_plugin.add_subparsers()
+    p_plugin_list = p_plugin_subparsers.add_parser("list", help="List all the plugins installed",
+                                                   parents=[parser_template])
+    p_plugin_list.set_defaults(func=plugin.list_plugins)
+
     for p in plugin.iter_plugins():
         try:
             plugin_parser_setup = p.__dist__['command_parser_setup']
