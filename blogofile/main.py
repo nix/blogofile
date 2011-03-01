@@ -38,6 +38,7 @@ import server
 import config
 import site_init
 import util
+import plugin
 
 logging.basicConfig()
 logger = logging.getLogger("blogofile")
@@ -47,7 +48,7 @@ def get_args(cmd=None):
     ##parser_template to base other parsers on
     parser_template = argparse.ArgumentParser(add_help=False)
     parser_template.add_argument("-s", "--src-dir", dest="src_dir",
-                        help="Your site's source directory "
+                                 help="Your site's source directory "
                                  "(default is current directory)",
                         metavar="DIR", default=os.curdir)
     parser_template.add_argument("--version", action="version")
@@ -100,6 +101,17 @@ def get_args(cmd=None):
                                    parents=[parser_template])
     p_info.set_defaults(func=do_info)
 
+    for p in plugin.iter_plugins():
+        try:
+            plugin_parser_setup = p.__dist__['command_parser_setup']
+        except KeyError:
+            continue
+        #Setup the blog subcommand parser
+        plugin_parser = subparsers.add_parser(
+            p.__dist__['config_name'], help="Plugin: "+p.__dist__['description'], parents=[parser_template])
+        plugin_parser.version = "{name} plugin {version} by {author} -- {url}".format(**p.__dist__)
+        plugin_parser_setup(plugin_parser, parser_template)
+    
     if not cmd: #pragma: no cover
         if len(sys.argv) <= 1:
             parser.print_help()
