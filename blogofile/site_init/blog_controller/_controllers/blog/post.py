@@ -210,7 +210,19 @@ class Post(object):
         logger.debug(u"Permalink: {0}".format(self.permalink))
      
     def __parse_yaml(self, yaml_src):
-        y = yaml.load(yaml_src)
+        try:
+            y = yaml.load(yaml_src)
+        except yaml.YAMLError, e:
+            if getattr(e, 'context_mark', None):
+                lineno = 1 + e.context_mark.line
+                raise PostParseException(u" {0}:{1} Post has bad YAML: {1}".format(
+                    self.filename, lineno, str(e)))
+            raise PostParseException(u" {0}:1 Post has bad YAML: {1}".format(
+                self.filename, str(e)))
+        if not isinstance(y, dict):
+            raise PostParseException(u" {0}:1 Post has bad YAML section".format(
+                self.filename))
+
         # Load all the fields that require special processing first:
         fields_need_processing = ('permalink', 'guid', 'date', 'updated',
                                   'categories', 'tags', 'draft')
